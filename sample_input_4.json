@@ -1,0 +1,30 @@
+{
+  "description": "Test case nhỏ để kiểm tra tính đúng đắn",
+  "house_capacities": [
+    2,
+    2,
+    2
+  ],
+  "relationships": {
+    "X": [
+      "Y",
+      "Z"
+    ],
+    "Y": [
+      "X",
+      "W"
+    ],
+    "Z": [
+      "X"
+    ],
+    "W": [
+      "Y"
+    ]
+  },
+  "people_to_select": [
+    "X",
+    "Y",
+    "Z",
+    "W"
+  ]
+}

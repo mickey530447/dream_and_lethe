@@ -1,0 +1,10 @@
+{
+  "description": "Ví dụ từ yêu cầu ban đầu",
+  "house_capacities": [3, 5, 5],
+  "relationships": {
+    "A": ["B", "C"],
+    "E": ["A", "C"],
+    "D": ["F"]
+  },
+  "people_to_select": ["A", "B", "C", "D", "E", "F"]
+}

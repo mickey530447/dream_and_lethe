@@ -1,0 +1,42 @@
+{
+  "description": "Trường hợp đơn giản - 1 nhà 3 phòng, 2 nhà 5 phòng",
+  "house_capacities": [
+    3,
+    5,
+    5
+  ],
+  "relationships": {
+    "A": [
+      "B",
+      "C",
+      "D"
+    ],
+    "E": [
+      "A",
+      "C"
+    ],
+    "D": [
+      "F"
+    ],
+    "B": [
+      "G"
+    ],
+    "F": [
+      "G",
+      "H"
+    ],
+    "H": [
+      "I"
+    ]
+  },
+  "people_to_select": [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "H"
+  ]
+}

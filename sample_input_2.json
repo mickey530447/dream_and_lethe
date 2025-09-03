@@ -1,0 +1,73 @@
+{
+  "description": "Cả 3 nhà đều có 3 phòng",
+  "house_capacities": [
+    3,
+    3,
+    3
+  ],
+  "relationships": {
+    "Alice": [
+      "Bob",
+      "Charlie",
+      "David"
+    ],
+    "Bob": [
+      "Alice",
+      "Eve",
+      "Frank"
+    ],
+    "Charlie": [
+      "Alice",
+      "Grace",
+      "Henry"
+    ],
+    "David": [
+      "Alice",
+      "Ivan"
+    ],
+    "Eve": [
+      "Bob",
+      "Jack"
+    ],
+    "Frank": [
+      "Bob",
+      "Grace"
+    ],
+    "Grace": [
+      "Charlie",
+      "Frank",
+      "Henry"
+    ],
+    "Henry": [
+      "Charlie",
+      "Grace"
+    ],
+    "Ivan": [
+      "David",
+      "Jack"
+    ],
+    "Jack": [
+      "Eve",
+      "Ivan",
+      "Kate"
+    ],
+    "Kate": [
+      "Jack",
+      "Liam"
+    ],
+    "Liam": [
+      "Kate"
+    ]
+  },
+  "people_to_select": [
+    "Alice",
+    "Bob",
+    "Charlie",
+    "David",
+    "Eve",
+    "Frank",
+    "Grace",
+    "Henry",
+    "Ivan"
+  ]
+}
