@@ -1,0 +1,7 @@
+"""
+Constants package for the Discord bot
+"""
+
+from .bot_constants import CHARACTERS, ALLOWED_CHANNEL_NAMES, HOUSE_CAPACITIES, RELATIONSHIPS
+
+__all__ = ['CHARACTERS', 'ALLOWED_CHANNEL_NAMES', 'HOUSE_CAPACITIES', 'RELATIONSHIPS']

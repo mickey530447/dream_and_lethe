@@ -1,133 +1,130 @@
-# House Assignment Optimization Problem
+# Dream & Lethe Discord Bot
 
-## Mô tả bài toán
+Discord bot để xếp character vào nhà tối ưu dựa trên relationships.
 
-Bài toán phân bổ người vào nhà để tối đa hóa số liên kết:
+## Tính năng
 
-- **Input**:
+### Commands Cơ Bản:
 
-  - 3 ngôi nhà với số phòng khác nhau [i, j, k]
-  - Tập hợp các mối quan hệ giữa người với người
-  - Danh sách người được đề xuất để chọn
+- `/add [character]` - Thêm character vào danh sách cá nhân
+- `/remove [character]` - Xóa character khỏi danh sách
+- `/check` - Xem danh sách character của bạn
+- `/gen` - Tạo lệnh /rela từ danh sách của bạn
+- `/clear` - Xóa toàn bộ danh sách
+- `/rela characters: [names]` - Xếp nhà (format: `Han Wu, Libai, Imperial`)
 
-- **Output**:
-  - Phân bổ người vào từng nhà sao cho tổng số liên kết trong tất cả các nhà là lớn nhất
+### Cách Dùng Nhanh:
 
-## Cấu trúc Input File (JSON)
+1. **Thêm characters:** `/add Han Wu` rồi `/add Libai` rồi `/add Imperial`
+2. **Kiểm tra:** `/check` để xem danh sách
+3. **Tạo lệnh:** `/gen` để copy lệnh /rela được tạo sẵn
+4. **Xếp nhà:** Paste lệnh vừa copy
+
+### Lưu ý:
+
+- Autocomplete sẽ gợi ý characters khi gõ
+- `/add` chỉ hiện characters chưa có trong list
+- `/remove` chỉ hiện characters đã có trong list
+- Bot xếp nhà tự động theo relationships tối ưu
+
+Chỉ cần 4 bước: Add → Check → Gen → Rela
+
+## Cấu trúc thư mục
+
+```
+dream_lethe_bot/
+├── src/                    # Source code
+│   ├── botdiscord.py      # Bot chính
+│   ├── solver.py          # Thuật toán xếp nhà
+│   └── user_manager.py    # Quản lý dữ liệu user
+├── constants/             # Dữ liệu constants
+│   └── bot_constants.py   # Characters và relationships
+├── user_data/            # Dữ liệu user cá nhân
+├── data/                 # File input test
+└── .env                  # Discord token
+```
+
+## Cài đặt và chạy
+
+1. **Cài đặt dependencies:**
+
+```bash
+pip install discord.py python-dotenv
+```
+
+2. **Tạo file .env:**
+
+```
+DISCORD_TOKEN=your_discord_bot_token
+```
+
+3. **Chạy bot:**
+
+```bash
+cd src
+python botdiscord.py
+```
+
+## Thuật toán xếp nhà
+
+Bot sử dụng thuật toán optimization để:
+
+- Tối đa hóa số relationships trong cùng nhà
+- Phân bổ đều characters vào các nhà
+- Sử dụng local search để cải thiện kết quả
+
+### Input Format (JSON):
 
 ```json
 {
-  "description": "Mô tả test case",
   "house_capacities": [3, 6, 6],
   "relationships": {
     "Imperial": ["Jingke", "Hanfei", "Han Wu"],
-    "Weiqing": ["Qubing", "Han Wu"],
-    "Yuhuan": ["Libai", "Longji"]
-  },
-  "people_to_select": ["Han Wu", "Weiqing", "Qubing", "Imperial"]
+    "Weiqing": ["Qubing", "Han Wu"]
+  }
 }
 ```
 
-### Giải thích:
+### Output Format:
 
-- `house_capacities`: Số phòng của từng nhà (3 nhà)
-- `relationships`: Mối quan hệ, `"A": ["B", "C"]` có nghĩa là A có liên kết với B và C
-- `people_to_select`: Danh sách cụ thể những người được đề xuất để chọn
+```
+🏠 Cách xếp mèo:
+Han Wu, Imperial, Jingke
+Weiqing, Qubing, Hanfei
+(trống)
+Tổng relationships = 4
+```
 
-## Files hiện có
+## Files test
 
-- `game_input_emitiramis.json`: Test case với nhân vật game (mèo characters)
-- `house_assignment_solver.py`: Code chính giải bài toán
+Các file input có sẵn trong thư mục `data/`:
 
-## Cách chạy
+- `game_input_emitiramis.json` - Dữ liệu characters game chính
+- `sample_input_*.json` - Các test case khác
+
+## Development
+
+### House Assignment Solver
+
+File `house_assignment_solver.py` chứa thuật toán optimization gốc có thể chạy standalone:
 
 ```bash
-# Chạy với file mặc định
 python house_assignment_solver.py
-
-# Nhập tên file khi được hỏi (enter để dùng game_input_arya.json)
-# Hoặc nhập: game_input_emitiramis.json
 ```
 
-## Thuật toán
+### Testing
 
-### 1. Xử lý người được chọn
-
-- Kiểm tra tất cả người trong `people_to_select` có tồn tại trong `relationships`
-- Nếu số người > tổng số phòng, tự động chọn những người có độ ưu tiên cao nhất
-- Độ ưu tiên = số liên kết với những người khác trong nhóm được chọn
-
-### 2. Optimization Strategies
-
-- **Fill-first**: Điền đầy nhà đầu tiên trước
-- **Balanced**: Phân bổ cân bằng giữa các nhà
-- **Local Search**: Cải thiện bằng hoán đổi người giữa các nhà
-
-### 3. Performance
-
-- **Iterations**: 1000 lần mặc định
-- **Strategies**: Mix giữa fill-first và balanced
-- **Local Search**: Tối đa 100 iterations per solution
-
-## Output Format
-
-```
-============================================================
-HOUSE ASSIGNMENT OPTIMIZATION
-============================================================
-Số phòng các nhà: [3, 6, 6]
-Tổng số phòng: 15
-Người được đề xuất: ['Han Wu', 'Weiqing', 'Qubing', ...]
-Số người được đề xuất: 13
-------------------------------------------------------------
-
-Kết quả: Đã chọn 13 người từ tổng số 29 người:
-  Han Wu: 4 liên kết trong nhóm được chọn với ['Weiqing', 'Shimin', 'Imperial', 'Qubing']
-  Weiqing: 2 liên kết trong nhóm được chọn với ['Qubing', 'Han Wu']
-  ...
-
-Iteration 156 (balanced): Tìm thấy giải pháp tốt hơn với 8 liên kết
-
-============================================================
-KẾT QUẢ PHÂN BỔ CUỐI CÙNG
-============================================================
-Tổng số liên kết đạt được: 8
-------------------------------------------------------------
-Nhà 1 (3/3 phòng) - 4 liên kết:
-  Han Wu, Weiqing, Qubing
-
-Nhà 2 (6/6 phòng) - 3 liên kết:
-  Imperial, Zihuan, Zhen Ji, Dufu, Jikang, Yuhuan
-
-Nhà 3 (4/6 phòng) - 1 liên kết:
-  Ruanji, Longji, Xiangyu, Xizhi
-
-============================================================
-OUTPUT FORMAT (Copy để sử dụng):
-============================================================
-Han Wu, Weiqing, Qubing
-Imperial, Zihuan, Zhen Ji, Dufu, Jikang, Yuhuan
-Ruanji, Longji, Xiangyu, Xizhi
+```bash
+python test_game.py
 ```
 
-## Tạo Input File mới
-
-Để tạo input mới, tạo file JSON theo format:
-
-```json
-{
-  "description": "Mô tả của bạn",
-  "house_capacities": [số_phòng_nhà_1, số_phòng_nhà_2, số_phòng_nhà_3],
-  "relationships": {
-    "TênNgười1": ["NgườiLiênKết1", "NgườiLiênKết2"],
-    "TênNgười2": ["NgườiLiênKết3"]
-  },
-  "people_to_select": [
-    "TênNgười1",
-    "TênNgười2",
-    "TênNgười3"
-  ]
+"people_to_select": [
+"TênNgười1",
+"TênNgười2",
+"TênNgười3"
+]
 }
+
 ```
 
 ## Tính năng đặc biệt
@@ -158,3 +155,4 @@ Ruanji, Longji, Xiangyu, Xizhi
 - Mối quan hệ là hai chiều (A-B thì B cũng tự động liên kết với A)
 - Tên người nên không có ký tự đặc biệt
 - File input phải có encoding UTF-8
+```
