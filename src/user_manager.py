@@ -153,3 +153,32 @@ class UserDataManager:
         stats += f"{', '.join(characters)}\n"
         
         return stats
+    
+    def reset_all_users(self) -> int:
+        """
+        Reset all user data (weekly cleanup)
+        Returns: Number of users cleared
+        """
+        reset_count = 0
+        
+        try:
+            # Get all user files in the directory
+            for user_file in self.data_dir.glob("user_*.json"):
+                try:
+                    user_file.unlink()  # Delete file
+                    reset_count += 1
+                except Exception as e:
+                    print(f"Error deleting {user_file}: {e}")
+            
+            return reset_count
+            
+        except Exception as e:
+            print(f"Error in reset_all_users: {e}")
+            return 0
+    
+    def get_total_users(self) -> int:
+        """Get total number of users with data"""
+        try:
+            return len(list(self.data_dir.glob("user_*.json")))
+        except Exception:
+            return 0

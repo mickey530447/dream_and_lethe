@@ -1,12 +1,13 @@
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 import os
 from dotenv import load_dotenv
 import asyncio
 import logging
 import sys
 from pathlib import Path
+from datetime import datetime, timezone, timedelta
 
 # Add the parent directory to the path to import constants
 sys.path.append(str(Path(__file__).parent.parent))
@@ -67,6 +68,39 @@ def is_allowed_channel(interaction_or_ctx):
     
     return False
 
+# GMT+7 timezone
+GMT_PLUS_7 = timezone(timedelta(hours=7))
+
+@tasks.loop(hours=1)  # Check every hour
+async def weekly_reset_task():
+    """Tự động reset danh sách user vào 6AM sáng thứ 2 hàng tuần GMT+7"""
+    try:
+        now = datetime.now(GMT_PLUS_7)
+        
+        # Kiểm tra xem có phải 6AM thứ 2 không (weekday 0 = Monday)
+        if now.weekday() == 0 and now.hour == 6 and now.minute < 60:
+            logger.info("🔄 Starting weekly user data reset...")
+            
+            # Reset tất cả user data
+            reset_count = user_manager.reset_all_users()
+            
+            logger.info(f"✅ Weekly reset completed! Cleared {reset_count} user(s) data.")
+            
+            # Có thể gửi thông báo đến channel cụ thể nếu cần
+            # for guild in bot.guilds:
+            #     for channel in guild.text_channels:
+            #         if channel.name in ["general", "announcements"]:
+            #             await channel.send("🔄 **Weekly Reset**: Tất cả danh sách character đã được reset!")
+            #             break
+                        
+    except Exception as e:
+        logger.error(f"Error in weekly reset task: {e}")
+
+@weekly_reset_task.before_loop
+async def before_weekly_reset():
+    """Wait for bot to be ready before starting the task"""
+    await bot.wait_until_ready()
+
 @bot.event
 async def on_ready():
     """Event triggered when bot is ready"""
@@ -79,6 +113,10 @@ async def on_ready():
         logger.info(f"Synced {len(synced)} command(s)")
     except Exception as e:
         logger.error(f"Failed to sync commands: {e}")
+    
+    # Start weekly reset task
+    weekly_reset_task.start()
+    logger.info("📅 Weekly reset task started (6AM Monday GMT+7)")
     
     # Set bot activity status
     activity = discord.Game(name="Dream & Lethe Bot")
@@ -315,6 +353,60 @@ async def channel_info(interaction: discord.Interaction):
     
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
+@bot.tree.command(name="resetstatus", description="Kiểm tra trạng thái weekly reset (Admin only)")
+async def reset_status(interaction: discord.Interaction):
+    """Check weekly reset status"""
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("❌ This command is for administrators only.", ephemeral=True)
+        return
+    
+    await interaction.response.defer(ephemeral=True)
+    
+    # Get current time in GMT+7
+    now = datetime.now(GMT_PLUS_7)
+    total_users = user_manager.get_total_users()
+    
+    # Calculate next Monday 6AM
+    days_until_monday = (7 - now.weekday()) % 7
+    if days_until_monday == 0 and now.hour >= 6:
+        days_until_monday = 7  # Next week if already past 6AM today
+    
+    next_reset = now.replace(hour=6, minute=0, second=0, microsecond=0) + timedelta(days=days_until_monday)
+    
+    embed = discord.Embed(title="📅 Weekly Reset Status", color=0x00ff00)
+    embed.add_field(name="Current Time (GMT+7)", value=now.strftime("%Y-%m-%d %H:%M:%S"), inline=False)
+    embed.add_field(name="Next Reset", value=next_reset.strftime("%Y-%m-%d %H:%M:%S (Monday)"), inline=False)
+    embed.add_field(name="Total Users", value=f"{total_users} users have character data", inline=False)
+    embed.add_field(name="Task Status", value="✅ Running" if weekly_reset_task.is_running() else "❌ Stopped", inline=False)
+    
+    await interaction.followup.send(embed=embed)
+
+@bot.tree.command(name="forcereset", description="Force reset tất cả user data ngay lập tức (Admin only)")
+async def force_reset(interaction: discord.Interaction):
+    """Force reset all user data immediately"""
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("❌ This command is for administrators only.", ephemeral=True)
+        return
+    
+    await interaction.response.defer(ephemeral=True)
+    
+    # Confirm before reset
+    total_users = user_manager.get_total_users()
+    
+    if total_users == 0:
+        await interaction.followup.send("ℹ️ Không có user data nào để reset.")
+        return
+    
+    # Perform reset
+    reset_count = user_manager.reset_all_users()
+    
+    embed = discord.Embed(title="🔄 Force Reset Completed", color=0xff9900)
+    embed.add_field(name="Users Cleared", value=f"{reset_count} users", inline=False)
+    embed.add_field(name="Time", value=datetime.now(GMT_PLUS_7).strftime("%Y-%m-%d %H:%M:%S GMT+7"), inline=False)
+    
+    await interaction.followup.send(embed=embed)
+    logger.info(f"🔄 Force reset executed by {interaction.user} - cleared {reset_count} users")
+
 @bot.event
 async def on_command_error(ctx, error):
     """Handle command errors"""
@@ -338,6 +430,11 @@ def run_bot():
         logger.error("Invalid token provided!")
     except Exception as e:
         logger.error(f"An error occurred while running the bot: {e}")
+    finally:
+        # Stop the weekly reset task when bot shuts down
+        if weekly_reset_task.is_running():
+            weekly_reset_task.stop()
+            logger.info("📅 Weekly reset task stopped")
 
 if __name__ == "__main__":
     run_bot()
