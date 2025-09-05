@@ -153,42 +153,26 @@ async def hello_slash(interaction: discord.Interaction):
     await interaction.response.send_message(f"👋 Hello {interaction.user.mention}! Welcome to Dream & Lethe Bot!")
 
 # Slash Commands with Autocomplete
-@bot.tree.command(name="rela", description="Assign characters to houses optimally")
-async def rela_command(interaction: discord.Interaction, characters: str):
-    """Character assignment command - input multiple characters separated by commas"""
+@bot.tree.command(name="rela", description="Assign your personal characters to houses optimally")
+async def rela_command(interaction: discord.Interaction):
+    """Character assignment command - uses your personal character list"""
     if not is_allowed_channel(interaction):
         await interaction.response.send_message("❌ This command can only be used in specific channels.", ephemeral=True)
         return
     
-    # Parse characters from input string (separated by commas)
-    character_list = [char.strip() for char in characters.split(',') if char.strip()]
+    # Get user's character list
+    user_characters = user_manager.get_user_characters(interaction.user.id)
     
-    if not character_list:
-        await interaction.response.send_message("❌ Please provide at least one character name.\nExample: `/rela Han Wu, Imperial, Weiqing`", ephemeral=True)
+    if not user_characters:
+        await interaction.response.send_message("❌ You don't have any characters added!\nUse `/add` to add characters first.\nExample: `/add character1:Han Wu character2:Imperial`", ephemeral=True)
         return
     
-    # Validate characters exist (case insensitive)
-    valid_characters = []
-    invalid_characters = []
-    
-    for char in character_list:
-        # Find matching character (case insensitive)
-        found = False
-        for valid_char in CHARACTERS:
-            if char.lower() == valid_char.lower():
-                valid_characters.append(valid_char)
-                found = True
-                break
-        if not found:
-            invalid_characters.append(char)
-    
-    if invalid_characters:
-        await interaction.response.send_message(f"❌ Invalid characters: {', '.join(invalid_characters)}\nValid characters: {', '.join(CHARACTERS[:10])}...", ephemeral=True)
-        return
+    # Defer response to prevent Discord timeout (3 seconds)
+    await interaction.response.defer()
     
     # Solve house assignment
     try:
-        assignment, total_score = solve_house_assignment(valid_characters)
+        assignment, total_score = solve_house_assignment(user_characters)
         
         # Format result exactly as requested
         result_lines = []
@@ -202,44 +186,75 @@ async def rela_command(interaction: discord.Interaction, characters: str):
         result_text = "\n".join(result_lines)
         
         # Send result in code block for clean formatting
-        await interaction.response.send_message(f"🏠 **Cách xếp mèo:**\n```\n{result_text}\n```")
+        await interaction.followup.send(f"🏠 **Cách xếp mèo:**\n```\n{result_text}\n```")
         
     except Exception as e:
         print(f"Error in house assignment: {e}")
-        await interaction.response.send_message("❌ Có lỗi xảy ra khi xử lý phân bổ nhà!", ephemeral=True)
-
-@rela_command.autocomplete('characters')
-async def rela_autocomplete(interaction: discord.Interaction, current: str):
-    """Simple autocomplete for character selection"""
-    try:
-        # Very simple: just filter characters by what user typed
-        filtered = [
-            char for char in CHARACTERS 
-            if current.lower() in char.lower()
-        ][:25]
-        
-        return [
-            discord.app_commands.Choice(name=char, value=char)
-            for char in filtered
-        ]
-    except:
-        # If any error, return empty list
-        return []
+        await interaction.followup.send("❌ Có lỗi xảy ra khi xử lý phân bổ nhà!")
 
 # User Data Management Commands
 
-@bot.tree.command(name="add", description="Thêm character vào danh sách cá nhân của bạn")
-@app_commands.describe(character="Tên character muốn thêm")
-async def add_character(interaction: discord.Interaction, character: str):
-    """Add character to user's personal list"""
+@bot.tree.command(name="add", description="Thêm characters vào danh sách cá nhân của bạn (tối đa 10)")
+@app_commands.describe(
+    character1="Character thứ 1",
+    character2="Character thứ 2 (optional)",
+    character3="Character thứ 3 (optional)",
+    character4="Character thứ 4 (optional)",
+    character5="Character thứ 5 (optional)",
+    character6="Character thứ 6 (optional)",
+    character7="Character thứ 7 (optional)",
+    character8="Character thứ 8 (optional)",
+    character9="Character thứ 9 (optional)",
+    character10="Character thứ 10 (optional)"
+)
+async def add_characters(
+    interaction: discord.Interaction, 
+    character1: str,
+    character2: str = None,
+    character3: str = None,
+    character4: str = None,
+    character5: str = None,
+    character6: str = None,
+    character7: str = None,
+    character8: str = None,
+    character9: str = None,
+    character10: str = None
+):
+    """Add multiple characters to user's personal list"""
     await interaction.response.defer()
     
-    success, message = user_manager.add_character(interaction.user.id, character, CHARACTERS)
-    await interaction.followup.send(message)
+    # Collect all non-None characters
+    characters_to_add = [char for char in [
+        character1, character2, character3, character4, character5,
+        character6, character7, character8, character9, character10
+    ] if char is not None]
+    
+    if not characters_to_add:
+        await interaction.followup.send("❌ Vui lòng nhập ít nhất 1 character!")
+        return
+    
+    # Add each character and collect results
+    results = []
+    success_count = 0
+    
+    for char in characters_to_add:
+        success, message = user_manager.add_character(interaction.user.id, char, CHARACTERS)
+        if success:
+            success_count += 1
+            results.append(f"✅ {char}")
+        else:
+            results.append(f"❌ {char} - {message.split('❌ ')[1] if '❌ ' in message else message}")
+    
+    # Format response
+    response = f"**Kết quả thêm {len(characters_to_add)} characters:**\n\n"
+    response += "\n".join(results)
+    response += f"\n\n**Tổng kết:** {success_count}/{len(characters_to_add)} thành công"
+    
+    await interaction.followup.send(response)
 
-@add_character.autocomplete('character')
-async def add_character_autocomplete(interaction: discord.Interaction, current: str):
-    """Autocomplete for add character command - shows characters not yet in user's list"""
+# Autocomplete functions for each parameter
+async def get_available_characters_for_user(interaction: discord.Interaction, current: str):
+    """Helper function to get available characters for autocomplete"""
     try:
         # Get user's current characters
         user_chars = user_manager.get_user_characters(interaction.user.id)
@@ -264,6 +279,46 @@ async def add_character_autocomplete(interaction: discord.Interaction, current: 
         ]
     except:
         return []
+
+@add_characters.autocomplete('character1')
+async def add_character1_autocomplete(interaction: discord.Interaction, current: str):
+    return await get_available_characters_for_user(interaction, current)
+
+@add_characters.autocomplete('character2')
+async def add_character2_autocomplete(interaction: discord.Interaction, current: str):
+    return await get_available_characters_for_user(interaction, current)
+
+@add_characters.autocomplete('character3')
+async def add_character3_autocomplete(interaction: discord.Interaction, current: str):
+    return await get_available_characters_for_user(interaction, current)
+
+@add_characters.autocomplete('character4')
+async def add_character4_autocomplete(interaction: discord.Interaction, current: str):
+    return await get_available_characters_for_user(interaction, current)
+
+@add_characters.autocomplete('character5')
+async def add_character5_autocomplete(interaction: discord.Interaction, current: str):
+    return await get_available_characters_for_user(interaction, current)
+
+@add_characters.autocomplete('character6')
+async def add_character6_autocomplete(interaction: discord.Interaction, current: str):
+    return await get_available_characters_for_user(interaction, current)
+
+@add_characters.autocomplete('character7')
+async def add_character7_autocomplete(interaction: discord.Interaction, current: str):
+    return await get_available_characters_for_user(interaction, current)
+
+@add_characters.autocomplete('character8')
+async def add_character8_autocomplete(interaction: discord.Interaction, current: str):
+    return await get_available_characters_for_user(interaction, current)
+
+@add_characters.autocomplete('character9')
+async def add_character9_autocomplete(interaction: discord.Interaction, current: str):
+    return await get_available_characters_for_user(interaction, current)
+
+@add_characters.autocomplete('character10')
+async def add_character10_autocomplete(interaction: discord.Interaction, current: str):
+    return await get_available_characters_for_user(interaction, current)
 
 @bot.tree.command(name="remove", description="Xóa character khỏi danh sách cá nhân của bạn")
 @app_commands.describe(character="Tên character muốn xóa")
