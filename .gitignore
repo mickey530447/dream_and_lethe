@@ -16,3 +16,6 @@ Thumbs.db
 *.bak
 *.swp
 *.swo
+
+# User data
+user_data/
