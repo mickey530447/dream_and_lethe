@@ -55,43 +55,7 @@ class HouseAssignmentSolver:
         if len(people_to_select) <= max_people:
             return people_to_select
         
-        # Special handling for lists that contain our known optimal assignment
-        optimal_core = ["Han Wu", "Imperial", "Shimin", "Qubing", "Weiqing",
-                       "Jingke", "Jianli", "Longji", "Yuhuan", "Hanfei",
-                       "Zihuan", "Zhen Ji", "Zijian", "Xiangyu", "Consort Yu"]
-        
-        people_set = set(people_to_select)
-        optimal_set = set(optimal_core)
-        
-        # If we have most of the optimal people, prioritize them
-        if len(optimal_set & people_set) >= 12:  # Most optimal people are present
-            selected = []
-            
-            # First, add all available optimal people
-            for person in optimal_core:
-                if person in people_set and len(selected) < max_people:
-                    selected.append(person)
-            
-            # Fill remaining slots with highest connection people
-            remaining_people = [p for p in people_to_select if p not in selected]
-            person_scores = []
-            
-            for person in remaining_people:
-                if person in self.people:
-                    priority = self.calculate_person_priority(person, people_to_select)
-                    person_scores.append((person, priority))
-            
-            person_scores.sort(key=lambda x: x[1], reverse=True)
-            
-            for person, score in person_scores:
-                if len(selected) < max_people:
-                    selected.append(person)
-                else:
-                    break
-            
-            return selected
-        
-        # Fallback to original priority-based selection
+        # Use priority-based selection for all cases
         person_scores = []
         for person in people_to_select:
             if person in self.people:
@@ -137,11 +101,13 @@ class HouseAssignmentSolver:
         no_improvement_count = 0
         early_stop_threshold = min(50, iterations // 4)  # Early stopping
         
-        # Try different strategies with higher probability for exact strategy
+        # Try different strategies with equal probability
         for iteration in range(iterations):
-            if iteration < 3 * iterations // 4:  # 75% of time use exact strategy
-                assignment = self._exact_optimal_strategy(selected_people)
-            else:
+            if iteration % 3 == 0:  # 1/3 time use smart strategy
+                assignment = self._smart_assignment_strategy(selected_people)
+            elif iteration % 3 == 1:  # 1/3 time use cluster strategy
+                assignment = self._cluster_assignment_strategy(selected_people)
+            else:  # 1/3 time use fill-first strategy
                 assignment = self._fill_first_assignment(selected_people)
             
             score = self._calculate_total_score(assignment)
@@ -197,47 +163,108 @@ class HouseAssignmentSolver:
         return assignment
     
     def _exact_optimal_strategy(self, people):
-        """Implement the exact manual strategy that achieved score 11"""
-        # Force exact assignment - the one that works!
-        exact_assignment = [
-            ["Han Wu", "Imperial", "Shimin", "Qubing", "Weiqing"],  # 5 connections
-            ["Jingke", "Jianli", "Longji", "Yuhuan", "Hanfei"],     # 3 connections  
-            ["Zihuan", "Zhen Ji", "Zijian", "Xiangyu", "Consort Yu"] # 3 connections
-        ]
+        """Try to find optimal assignment using connection-based heuristics"""
+        # Use smart heuristics instead of hardcoded assignment
+        return self._smart_assignment_strategy(people)
+    
+    def _smart_assignment_strategy(self, people):
+        """Smart assignment strategy based on connection patterns"""
+        assignment = [[], [], []]
+        people_copy = people.copy()
+        random.shuffle(people_copy)  # Add randomness for exploration
         
-        # Check if all people from exact assignment are available
-        exact_people = set()
-        for house in exact_assignment:
-            exact_people.update(house)
-        
-        people_set = set(people)
-        
-        if exact_people.issubset(people_set):
-            # Use exact assignment
-            assignment = [house.copy() for house in exact_assignment]
-            
-            # Add remaining people to houses with space (don't change existing optimal structure)
-            assigned = set()
-            for house in assignment:
-                assigned.update(house)
-            
-            remaining = [p for p in people if p not in assigned]
-            
-            # Add remaining people by least disruption
-            for person in remaining:
-                # Find house with most space first
-                house_spaces = [(5 - len(assignment[i]), i) for i in range(3)]
-                house_spaces.sort(reverse=True)  # Most space first
+        # Try greedy approach: for each person, place them where they create most connections
+        for person in people_copy:
+            if person not in self.people:
+                continue
                 
+            best_house = -1
+            best_gain = -1
+            
+            # Try each house and calculate connection gain
+            for house_idx in range(3):
+                if len(assignment[house_idx]) < self.house_capacities[house_idx]:
+                    # Calculate current connections in house
+                    current_connections = self.calculate_connections_in_house(assignment[house_idx])
+                    
+                    # Calculate connections if we add this person
+                    test_house = assignment[house_idx] + [person]
+                    new_connections = self.calculate_connections_in_house(test_house)
+                    
+                    # Connection gain from adding this person
+                    gain = new_connections - current_connections
+                    
+                    if gain > best_gain:
+                        best_gain = gain
+                        best_house = house_idx
+            
+            # If no positive gain found, add to house with most space
+            if best_house == -1:
+                house_spaces = [(self.house_capacities[i] - len(assignment[i]), i) for i in range(3)]
+                house_spaces.sort(reverse=True)
                 for space, house_idx in house_spaces:
                     if space > 0:
-                        assignment[house_idx].append(person)
+                        best_house = house_idx
                         break
             
-            return assignment
-        else:
-            # Fallback to fill-first if exact assignment not possible
+            # Add to best house
+            if best_house >= 0:
+                assignment[best_house].append(person)
+        
+        return assignment
+    
+    def _cluster_assignment_strategy(self, people):
+        """Try to cluster highly connected people together"""
+        assignment = [[], [], []]
+        remaining_people = people.copy()
+        
+        # Find the person with most connections
+        max_connections = 0
+        seed_person = None
+        
+        for person in remaining_people:
+            if person in self.people:
+                connections = self.calculate_person_priority(person, remaining_people)
+                if connections > max_connections:
+                    max_connections = connections
+                    seed_person = person
+        
+        if seed_person is None:
             return self._fill_first_assignment(people)
+        
+        # Start first house with seed person
+        assignment[0].append(seed_person)
+        remaining_people.remove(seed_person)
+        
+        # Fill houses one by one, prioritizing people connected to current house members
+        for house_idx in range(3):
+            while len(assignment[house_idx]) < self.house_capacities[house_idx] and remaining_people:
+                best_person = None
+                best_score = -1
+                
+                # Find person who connects best with current house
+                for person in remaining_people:
+                    if person not in self.people:
+                        continue
+                        
+                    score = 0
+                    for house_member in assignment[house_idx]:
+                        if person in self.connection_graph[house_member]:
+                            score += 1
+                    
+                    if score > best_score:
+                        best_score = score
+                        best_person = person
+                
+                # If no connected person found, pick any remaining person
+                if best_person is None and remaining_people:
+                    best_person = remaining_people[0]
+                
+                if best_person:
+                    assignment[house_idx].append(best_person)
+                    remaining_people.remove(best_person)
+        
+        return assignment
     
     def _local_search(self, assignment):
         """Enhanced local search with multiple improvement strategies"""
