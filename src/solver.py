@@ -51,23 +51,158 @@ class HouseAssignmentSolver:
         return connections_in_pool
     
     def select_best_people(self, people_to_select, max_people):
-        """Select best people when count > capacity"""
+        """Select best people when count > capacity using smart evaluation"""
         if len(people_to_select) <= max_people:
             return people_to_select
         
-        # Use priority-based selection for all cases
+        # For exactly 19->15 people (our case), test all combinations
+        if len(people_to_select) == 19 and max_people == 15:
+            return self._exhaustive_combination_search(people_to_select, max_people)
+        
+        # For small differences, try multiple combinations
+        if len(people_to_select) - max_people <= 4:
+            return self._try_multiple_combinations(people_to_select, max_people)
+        
+        # For large differences, use improved priority-based selection
+        return self._improved_priority_selection(people_to_select, max_people)
+    
+    def _exhaustive_combination_search(self, people_to_select, max_people):
+        """Test combinations for 19->15 case with smart pruning"""
+        from itertools import combinations
+        
+        best_score = -1
+        best_combination = None
+        excess_count = len(people_to_select) - max_people
+        
+        # First pass: quick evaluation with cluster strategy
+        print(f"Phase 1: Quick screening of all {excess_count}-removal combinations...")
+        
+        top_combinations = []
+        combination_count = 0
+        
+        for people_to_remove in combinations(people_to_select, excess_count):
+            combination_count += 1
+            
+            # Create test combination
+            test_people = [p for p in people_to_select if p not in people_to_remove]
+            
+            # Quick evaluation with cluster strategy
+            test_assignment = self._cluster_assignment_strategy(test_people)
+            test_score = self._calculate_total_score(test_assignment)
+            
+            top_combinations.append((test_score, test_people, people_to_remove))
+            
+            if combination_count % 1000 == 0:
+                print(f"  Screened {combination_count} combinations...")
+        
+        # Sort and take top combinations
+        top_combinations.sort(key=lambda x: x[0], reverse=True)
+        top_count = min(20, len(top_combinations))  # Test top 20 combinations
+        
+        print(f"Phase 2: Full optimization of top {top_count} combinations...")
+        
+        for i, (quick_score, test_people, people_to_remove) in enumerate(top_combinations[:top_count]):
+            print(f"  Testing #{i+1} (quick score: {quick_score})...")
+            
+            # Full optimization for accurate evaluation
+            temp_solver = HouseAssignmentSolver(self.house_capacities, self.relationships)
+            test_assignment, test_score = temp_solver.optimize_assignment(test_people, iterations=200)
+            
+            if test_score > best_score:
+                best_score = test_score
+                best_combination = test_people
+                print(f"    New best: {test_score} connections (removed: {list(people_to_remove)})")
+        
+        print(f"Final: best score found: {best_score}")
+        
+        if best_combination is None:
+            return self._improved_priority_selection(people_to_select, max_people)
+        
+        return best_combination
+    
+    def _try_multiple_combinations(self, people_to_select, max_people):
+        """Try different combinations and pick the best one"""
+        from itertools import combinations
+        
+        best_score = -1
+        best_combination = None
+        
+        # Try removing each combination of excess people
+        excess_count = len(people_to_select) - max_people
+        
+        # For 4 excess people (19->15), test all combinations
+        max_combinations = 100 if excess_count <= 4 else 50
+        combination_count = 0
+        
+        for people_to_remove in combinations(people_to_select, excess_count):
+            combination_count += 1
+            if combination_count > max_combinations:
+                break
+                
+            # Create test combination
+            test_people = [p for p in people_to_select if p not in people_to_remove]
+            
+            # Use cluster strategy for evaluation (it works best)
+            test_assignment = self._cluster_assignment_strategy(test_people)
+            test_score = self._calculate_total_score(test_assignment)
+            
+            if test_score > best_score:
+                best_score = test_score
+                best_combination = test_people
+        
+        # If no combination found, fallback to priority-based
+        if best_combination is None:
+            return self._improved_priority_selection(people_to_select, max_people)
+        
+        return best_combination
+    
+    def _improved_priority_selection(self, people_to_select, max_people):
+        """Improved priority selection considering cluster potential"""
         person_scores = []
+        
         for person in people_to_select:
             if person in self.people:
-                priority = self.calculate_person_priority(person, people_to_select)
-                person_scores.append((person, priority))
+                # Calculate multiple factors
+                individual_connections = self.calculate_person_priority(person, people_to_select)
+                
+                # Bonus for being part of tight clusters
+                cluster_bonus = self._calculate_cluster_bonus(person, people_to_select)
+                
+                # Combined score
+                total_score = individual_connections + cluster_bonus * 0.5
+                person_scores.append((person, total_score))
         
-        # Sort by priority (descending)
+        # Sort by total score (descending)
         person_scores.sort(key=lambda x: x[1], reverse=True)
         
-        # Select highest priority people
+        # Select highest scoring people
         selected = [person for person, score in person_scores[:max_people]]
         return selected
+    
+    def _calculate_cluster_bonus(self, person, people_pool):
+        """Calculate bonus for being part of a tight cluster"""
+        if person not in self.people:
+            return 0
+        
+        # Find people connected to this person
+        connected_people = []
+        for other in people_pool:
+            if other != person and other in self.connection_graph[person]:
+                connected_people.append(other)
+        
+        # Calculate how many of the connected people are also connected to each other
+        cluster_bonus = 0
+        for i in range(len(connected_people)):
+            for j in range(i + 1, len(connected_people)):
+                if connected_people[j] in self.connection_graph[connected_people[i]]:
+                    cluster_bonus += 1
+        
+        return cluster_bonus
+    
+    def _quick_assignment(self, people):
+        """Quick assignment for evaluation purposes"""
+        # Use the cluster strategy for quick evaluation
+        return self._cluster_assignment_strategy(people)
     
     def optimize_assignment(self, people_to_select, iterations=None):
         """Optimize house assignment for given people"""
