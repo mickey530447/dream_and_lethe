@@ -3,7 +3,7 @@ Constants for Discord bot
 """
 
 # House capacities for assignment
-HOUSE_CAPACITIES = [3, 6, 6]
+HOUSE_CAPACITIES = [5, 5, 5]
 
 # Character relationships
 RELATIONSHIPS = {
